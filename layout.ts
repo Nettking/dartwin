@@ -64,9 +64,6 @@ function createTwinSystemNodes(
       style: {
         width: TWIN_WIDTH,
         height: TWIN_HEIGHT,
-        alignItems: "flex-start",
-        justifyContent: "flex-start",
-        padding: "62px 48px 110px",
       },
       draggable: false,
       selectable: false,
@@ -144,9 +141,6 @@ function createTwinSystemNodes(
         style: {
           width: DT_WIDTH,
           height: DT_HEIGHT,
-          padding: "26px 28px 70px",
-          alignItems: "flex-start",
-          justifyContent: "flex-start",
         },
         parentNode: tw.id,
         extent: "parent",
