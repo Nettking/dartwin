@@ -1,4 +1,5 @@
-import { ReactFlow } from "reactflow";
+import { useEffect } from "react";
+import { ReactFlow, useReactFlow } from "reactflow";
 import type { Connection, Edge, Node, OnEdgesChange, OnNodesChange } from "reactflow";
 
 import { nodeTypes } from "./NodeTypes";
@@ -18,6 +19,14 @@ export function DiagramCanvas({
   onEdgesChange,
   onConnect,
 }: DiagramCanvasProps) {
+  const { fitView } = useReactFlow();
+
+  useEffect(() => {
+    if (nodes.length > 0) {
+      fitView({ padding: 0.2, duration: 0 });
+    }
+  }, [nodes, fitView]);
+
   return (
     <ReactFlow
       nodes={nodes}

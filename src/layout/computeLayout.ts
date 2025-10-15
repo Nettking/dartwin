@@ -183,9 +183,7 @@ const layoutTwinPorts = (
       ? anchors.actuatorStartX
       : fallbackActuatorStartX;
   const actuatorY =
-    (anchors?.actuatorY ?? twinPosition.y + TWIN_HEIGHT / 2) +
-    PORT_HEIGHT +
-    ACTUATOR_CHAIN_GAP;
+    (anchors?.actuatorY ?? twinPosition.y + TWIN_HEIGHT / 2) + PORT_HEIGHT + ACTUATOR_CHAIN_GAP;
   actuatorPorts.forEach((port, index) => {
     positions[port.id] = {
       x: baseActuatorStartX + index * (PORT_WIDTH + ACTUATOR_HORIZONTAL_GAP),
