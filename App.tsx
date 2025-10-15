@@ -32,38 +32,63 @@ type DTEdge = {
 };
 
 /* ============================================================================
+   Helpers
+============================================================================ */
+const formatLabel = (label: string) => {
+  if (!label) return "";
+
+  const spaced = label
+    .replace(/_/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2");
+  const collapsed = spaced.replace(/\b([A-Z])\s+([A-Z])\b/g, "$1$2");
+
+  return collapsed
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => {
+      if (/^[A-Z]+$/.test(part)) return part;
+      return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+    })
+    .join(" ");
+};
+
+const formatPortLabel = (label: string) => {
+  let pretty = formatLabel(label);
+  pretty = pretty.replace(/Multi Sensor/i, "Multi-sensor");
+  return pretty;
+};
+
+/* ============================================================================
    Example DSL
 ============================================================================ */
-const sample = `#dartwin StrawberryCultivation {
-  #twinsystem StrawberryController  {
-    connect StrawberryCultivation.CultivationSystem.FieldMultisensor  to StrawberryDT.multisensor_input;
-    connect StrawberryCultivation.CultivationSystem.FieldSoilMoisture to StrawberryDT.soilMoisture_input;
-    connect StrawberryDT.actuator_output_ventilation to StrawberryCultivation.CultivationSystem.FieldActuatorVentilation;
-    connect StrawberryDT.actuator_output_irrigation  to StrawberryCultivation.CultivationSystem.FieldActuatorIrrigation;
-    connect StrawberryDT.actuator_output_human       to StrawberryCultivation.CultivationSystem.FieldHumanActuator;
+const sample = `#dartwin StrawberryCultivationTrans {
+  #twinsystem Strawberry {
+    connect Strawberry.Cultivation.MultiSensor        to StrawberryDT.multisensor_input;
+    connect StrawberryDT.actuator_output_irrigation   to Strawberry.Cultivation.IrrigationActuator;
+    connect StrawberryDT.actuator_output_human        to Strawberry.Cultivation.HumanActuator;
+    connect StrawberryDT.actuator_output_ventilation  to Strawberry.Cultivation.VentilationActuator;
 
     #digitaltwin StrawberryDT {
       port multisensor_input;
-      port soilMoisture_input;
-      port actuator_output_ventilation;
       port actuator_output_irrigation;
       port actuator_output_human;
+      port actuator_output_ventilation;
     }
 
-    part CultivationSystem {
-      port FieldMultisensor;
-      port FieldSoilMoisture;
-      port FieldActuatorVentilation;
-      port FieldActuatorIrrigation;
-      port FieldHumanActuator;
+    part Cultivation {
+      port MultiSensor;
+      port IrrigationActuator;
+      port HumanActuator;
+      port VentilationActuator;
     }
   }
 
-  #goal increase_yield { doc /* maximize strawberry yield */ }
-  #goal apply_decreased_water { doc /* decreased water */ }
+  #goal increase_yield { doc /* yield y higher y than before */ }
+  #goal apply_decreased_water { doc /* water consumption w lower w than before */ }
 
-  allocate increase_yield to StrawberryController.StrawberryDT;
-  allocate apply_decreased_water to StrawberryController.StrawberryDT;
+  allocate increase_yield to Strawberry.StrawberryDT;
+  allocate apply_decreased_water to Strawberry.StrawberryDT;
 }`;
 
 /* ============================================================================
@@ -200,8 +225,15 @@ function parseDarTwin(text: string): { nodes: DTNode[]; edges: DTEdge[] } {
    Node Components
 ============================================================================ */
 function PortNode({ data }: any) {
-  return <div className="node port" title={data.label}></div>;
+  const captionSide = data.captionSide || "bottom";
+  return (
+    <div className={`port-node caption-${captionSide}`}>
+      <div className="node port" title={data.label}></div>
+      {data.caption ? <div className="port-caption">{data.caption}</div> : null}
+    </div>
+  );
 }
+
 function GoalNode({ data }: any) {
   return (
     <div className="node goal">
@@ -210,8 +242,22 @@ function GoalNode({ data }: any) {
     </div>
   );
 }
-function BoxNode({ data }: any) {
-  return <div className={`node ${data.color || ""}`}>{data.label}</div>;
+
+function TwinSystemNode({ data }: any) {
+  return (
+    <div className="node twinsystem">
+      <span className="tw-prefix">twin.system</span>
+      <em className="tw-name">{data.label}</em>
+    </div>
+  );
+}
+
+function DigitalTwinNode({ data }: any) {
+  return (
+    <div className="node dt">
+      <span className="dt-name">{data.label}</span>
+    </div>
+  );
 }
 
 /* ============================================================================
@@ -221,21 +267,21 @@ function toRF(nodes: DTNode[], edges: DTEdge[]) {
   const rfNodes: Node[] = [];
   const rfEdges: Edge[] = [];
 
-  const formatLabel = (label: string) =>
-    label
-      .split(/_|(?=[A-Z])/)
-      .filter(Boolean)
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(" ");
+  const canvasWidth = 720;
+  const twinWidth = 520;
+  const twinHeight = 320;
+  const dtWidth = 300;
+  const dtHeight = 180;
 
-  const canvasWidth = 640;
-  const centerX = canvasWidth / 2;
-
-  const dartwin = nodes.find((n) => n.type === "dartwin");
   const twinsystems = nodes.filter((n) => n.type === "twinsystem");
   const digitalTwins = nodes.filter((n) => n.type === "dt");
   const goalNodes = nodes.filter((n) => n.type === "goal");
   const portNodes = nodes.filter((n) => n.type === "port");
+
+  const twinAreaWidth = twinsystems.length > 0 ? twinsystems.length * (twinWidth + 40) - 40 : twinWidth;
+  const goalsStartX = (canvasWidth - Math.max(twinAreaWidth, 320)) / 2 + 20;
+  const goalSpacing =
+    goalNodes.length > 1 ? Math.min((twinWidth - 160) / (goalNodes.length - 1), 280) : 0;
 
   goalNodes.forEach((goal, idx) => {
     rfNodes.push({
@@ -246,108 +292,201 @@ function toRF(nodes: DTNode[], edges: DTEdge[]) {
         doc: goal.doc,
       },
       position: {
-        x: 80 + idx * 240,
-        y: 10,
+        x: goalsStartX + idx * goalSpacing,
+        y: 28,
       },
       style: {
-        width: 180,
-        height: 68,
+        width: 210,
+        height: 88,
       },
       draggable: false,
       selectable: false,
     });
   });
 
-  if (dartwin) {
-    rfNodes.push({
-      id: dartwin.id,
-      type: dartwin.type,
-      data: { label: `dartwin ${formatLabel(dartwin.label)}` },
-      position: { x: 60, y: 120 },
-      style: { width: 360, height: 52, alignItems: "center", justifyContent: "flex-start", padding: "0 16px" },
-      draggable: false,
-      selectable: false,
-    });
-  }
-
   twinsystems.forEach((tw, idx) => {
+    const twinX = (canvasWidth - twinWidth) / 2 + idx * (twinWidth + 40);
+    const twinY = 188;
+
     rfNodes.push({
       id: tw.id,
       type: tw.type,
-      data: { label: `twin.system ${formatLabel(tw.label)}` },
-      position: { x: 100 + idx * 240, y: 190 },
-      style: { width: 320, height: 48, alignItems: "center", justifyContent: "flex-start", padding: "0 16px" },
-      draggable: false,
-      selectable: false,
-    });
-  });
-
-  digitalTwins.forEach((dt, index) => {
-    const width = 260;
-    const height = 140;
-    const x = centerX - width / 2 + index * 280;
-    const y = 270;
-
-    rfNodes.push({
-      id: dt.id,
-      type: dt.type,
-      data: { label: formatLabel(dt.label) },
-      position: { x, y },
-      style: { width, height, padding: "12px 16px", alignItems: "flex-start" },
+      data: { label: formatLabel(tw.label) },
+      position: { x: twinX, y: twinY },
+      style: {
+        width: twinWidth,
+        height: twinHeight,
+        alignItems: "flex-start",
+        justifyContent: "flex-start",
+        padding: "62px 48px 110px",
+      },
       draggable: false,
       selectable: false,
     });
 
-    const dtPorts = portNodes.filter((p) => p.parentId === dt.id);
-    const inputs = dtPorts.filter((p) => /input/i.test(p.label));
-    const outputs = dtPorts.filter((p) => /output/i.test(p.label));
+    const containedDigitalTwins = digitalTwins.filter((dt) => dt.parentId === tw.id);
+    const dtOffsetX = (twinWidth - dtWidth) / 2;
+    const dtOffsetY = 96;
 
-    const placePorts = (collection: DTNode[], yOffset: number) => {
-      const step = collection.length > 1 ? width / (collection.length + 1) : width / 2;
-      collection.forEach((port, idx) => {
-        rfNodes.push({
-          id: port.id,
-          type: port.type,
-          data: { label: port.label },
-          position: { x: step * (idx + 1) - 9, y: yOffset },
-          parentNode: dt.id,
-          extent: "parent",
-          draggable: false,
-          selectable: false,
-        });
-      });
+    const addPortNode = (
+      port: DTNode,
+      x: number,
+      y: number,
+      options: {
+        parent?: string;
+        orientation?: "top" | "bottom" | "left" | "right";
+        caption?: string;
+        captionSide?: "bottom" | "right" | "left" | "top";
+      } = {}
+    ) => {
+      const node: Node = {
+        id: port.id,
+        type: port.type,
+        data: {
+          label: formatPortLabel(port.label),
+          caption: options.caption,
+          captionSide: options.captionSide,
+        },
+        position: { x, y },
+        draggable: false,
+        selectable: false,
+      };
+
+      if (options.parent) {
+        node.parentNode = options.parent;
+        node.extent = "parent";
+      }
+
+      switch (options.orientation) {
+        case "top":
+          node.sourcePosition = "top";
+          node.targetPosition = "bottom";
+          break;
+        case "bottom":
+          node.sourcePosition = "bottom";
+          node.targetPosition = "top";
+          break;
+        case "left":
+          node.sourcePosition = "left";
+          node.targetPosition = "right";
+          break;
+        case "right":
+          node.sourcePosition = "right";
+          node.targetPosition = "left";
+          break;
+        default:
+          break;
+      }
+
+      rfNodes.push(node);
+      return node;
     };
 
-    placePorts(inputs, 16);
-    placePorts(outputs, height - 34);
-  });
+    const twinPorts = portNodes.filter((p) => p.parentId === tw.id);
+    let dtLayout: { baseX: number; step: number; y: number } | null = null;
 
-  const twinPorts = portNodes.filter((p) => twinsystems.some((tw) => tw.id === p.parentId));
-  const portStartX = centerX - (twinPorts.length * 60) / 2;
-  twinPorts.forEach((port, idx) => {
-    rfNodes.push({
-      id: port.id,
-      type: port.type,
-      data: { label: port.label },
-      position: { x: portStartX + idx * 60, y: 460 },
-      draggable: false,
-      selectable: false,
-    });
-  });
+    containedDigitalTwins.forEach((dt, index) => {
+      const dtX = dtOffsetX + index * (dtWidth + 40);
+      const dtY = dtOffsetY;
 
-  const orphanPorts = portNodes.filter(
-    (p) => !digitalTwins.some((dt) => dt.id === p.parentId) && !twinsystems.some((tw) => tw.id === p.parentId)
-  );
-  orphanPorts.forEach((port, idx) => {
-    rfNodes.push({
-      id: port.id,
-      type: port.type,
-      data: { label: port.label },
-      position: { x: 80 + idx * 60, y: 520 },
-      draggable: false,
-      selectable: false,
+      rfNodes.push({
+        id: dt.id,
+        type: dt.type,
+        data: { label: formatLabel(dt.label).replace(/Dt\b/, "DT") },
+        position: { x: dtX, y: dtY },
+        style: {
+          width: dtWidth,
+          height: dtHeight,
+          padding: "26px 28px 70px",
+          alignItems: "flex-start",
+          justifyContent: "flex-start",
+        },
+        parentNode: tw.id,
+        extent: "parent",
+        draggable: false,
+        selectable: false,
+      });
+
+      const dtPorts = portNodes.filter((p) => p.parentId === dt.id);
+      const inputPorts = dtPorts.filter((p) => /input/i.test(p.label));
+      const outputPorts = dtPorts.filter((p) => /output/i.test(p.label));
+
+      inputPorts.forEach((port) => {
+        addPortNode(port, dtWidth - 18, dtHeight / 2 - 9, {
+          parent: dt.id,
+          orientation: "right",
+        });
+      });
+
+      const outputOrder = [
+        "actuator_output_irrigation",
+        "actuator_output_human",
+        "actuator_output_ventilation",
+      ];
+      const orderedOutputs = [...outputPorts].sort((a, b) => {
+        const aIdx = outputOrder.indexOf(a.label);
+        const bIdx = outputOrder.indexOf(b.label);
+        return (aIdx === -1 ? outputOrder.length : aIdx) - (bIdx === -1 ? outputOrder.length : bIdx);
+      });
+      const step = orderedOutputs.length > 1 ? dtWidth / (orderedOutputs.length + 1) : dtWidth / 2;
+
+      if (!dtLayout) {
+        dtLayout = { baseX: dtX, step, y: dtY };
+      }
+
+      orderedOutputs.forEach((port, idx) => {
+        addPortNode(port, step * (idx + 1) - 9, dtHeight - 32, {
+          parent: dt.id,
+          orientation: "bottom",
+        });
+      });
+
+      orderedOutputs.forEach((port, idx) => {
+        const next = orderedOutputs[idx + 1];
+        if (!next) return;
+        rfEdges.push({
+          id: `${port.id}_internal_${next.id}`,
+          source: port.id,
+          target: next.id,
+          style: {
+            stroke: "#000",
+            strokeWidth: 1.2,
+          },
+          markerEnd: { type: "arrowclosed", color: "#000" },
+        });
+      });
     });
-  });
+
+    if (dtLayout) {
+      const bottomPorts = twinPorts
+        .filter((p) => /Actuator$/i.test(p.label))
+        .sort((a, b) => {
+          const order = ["IrrigationActuator", "HumanActuator", "VentilationActuator"];
+          const aIdx = order.indexOf(a.label);
+          const bIdx = order.indexOf(b.label);
+          return (aIdx === -1 ? order.length : aIdx) - (bIdx === -1 ? order.length : bIdx);
+        });
+
+      bottomPorts.forEach((port, idx) => {
+        const portX = dtLayout!.baseX + dtLayout!.step * (idx + 1) - 9;
+        addPortNode(port, portX, twinHeight - 86, {
+          parent: tw.id,
+          orientation: "top",
+          caption: formatPortLabel(port.label),
+        });
+      });
+
+      const sidePorts = twinPorts.filter((p) => /MultiSensor/i.test(p.label));
+      sidePorts.forEach((port) => {
+        addPortNode(port, twinWidth - 78, dtLayout!.y + dtHeight / 2 - 9, {
+          parent: tw.id,
+          orientation: "right",
+          caption: formatPortLabel(port.label),
+          captionSide: "right",
+        });
+      });
+    }
+    });
 
   for (const e of edges) {
     rfEdges.push({
@@ -388,9 +527,8 @@ function FlowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onConnect }: a
     () => ({
       port: PortNode,
       goal: GoalNode,
-      dt: (p: any) => <BoxNode {...p} color="dt" />,
-      twinsystem: (p: any) => <BoxNode {...p} color="twinsystem" />,
-      dartwin: (p: any) => <BoxNode {...p} color="dartwin" />,
+      dt: DigitalTwinNode,
+      twinsystem: TwinSystemNode,
     }),
     []
   );
@@ -424,6 +562,8 @@ function FlowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onConnect }: a
 function InnerApp() {
   const [text, setText] = useState(sample);
   const parsed = useMemo(() => parseDarTwin(text), [text]);
+  const dartwinNode = useMemo(() => parsed.nodes.find((n) => n.type === "dartwin"), [parsed]);
+  const dartwinTitle = useMemo(() => formatLabel(dartwinNode?.label ?? ""), [dartwinNode]);
   const { rfNodes, rfEdges } = useMemo(() => toRF(parsed.nodes, parsed.edges), [parsed]);
   const [nodes, setNodes, onNodesChange] = useNodesState(rfNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(rfEdges);
@@ -454,6 +594,16 @@ function InnerApp() {
       <div className="panel">
         <h2>Diagram</h2>
         <div className="diagram-container">
+          <div className="diagram-overlay" aria-hidden="true">
+            <div className="overlay-tab">
+              <span className="tab-brand">dartwin</span>
+              <span className="tab-title">{dartwinTitle}</span>
+            </div>
+            <div className="overlay-divider">
+              <span className="divider-marker marker-left"></span>
+              <span className="divider-marker marker-right"></span>
+            </div>
+          </div>
           <FlowCanvas
             nodes={nodes}
             edges={edges}
