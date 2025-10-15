@@ -1,0 +1,185 @@
+.diagram-container {
+  flex: 1;
+  border: 1.5px solid #000;
+  border-radius: 0;
+  overflow: hidden;
+  position: relative;
+  min-height: 640px;
+  background: #fff;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+}
+
+.diagram-container .react-flow {
+  font-family: "Times New Roman", serif;
+  position: relative;
+  z-index: 2;
+}
+
+.diagram-container .react-flow__attribution {
+  display: none;
+}
+
+.node {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Times New Roman", serif;
+  font-size: 13px;
+  color: #000;
+  background: #fff;
+  text-align: center;
+  border-radius: 0;
+  box-shadow: none;
+  text-transform: none;
+}
+
+.node.twinsystem {
+  border: 1.5px solid #000;
+  background: #fff;
+  font-weight: 600;
+  justify-content: flex-start;
+  padding: 18px 24px;
+  gap: 8px;
+}
+
+.node.dt {
+  border: 1.5px solid #000;
+  background: #fff;
+  font-weight: 600;
+  justify-content: flex-start;
+  align-items: flex-start;
+  padding: 18px 22px;
+  position: relative;
+}
+
+.node.goal {
+  width: 210px;
+  height: 88px;
+  background: #fff;
+  border: 1.5px solid #000;
+  clip-path: polygon(10% 0%, 90% 0%, 100% 88%, 0% 88%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  font-weight: 700;
+  padding: 12px 18px 16px;
+}
+
+.goal-title {
+  font-size: 18px;
+  text-transform: capitalize;
+}
+
+.goal-doc {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.2;
+  font-style: italic;
+}
+
+.dt-name {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.tw-prefix {
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: lowercase;
+}
+
+.tw-name {
+  font-size: 16px;
+  font-style: italic;
+  font-weight: 600;
+}
+
+.port-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: "Times New Roman", serif;
+}
+
+.port-node.caption-right {
+  flex-direction: row;
+  gap: 10px;
+  align-items: center;
+}
+
+.port-node.caption-bottom .port-caption {
+  margin-top: 4px;
+}
+
+.port-node.caption-right .port-caption {
+  margin-left: 4px;
+}
+
+.port-caption {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.node.port {
+  width: 18px;
+  height: 18px;
+  border: 1.2px solid #000;
+  background: #fff;
+  border-radius: 3px;
+}
+
+.diagram-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  font-family: "Times New Roman", serif;
+}
+
+.overlay-tab {
+  position: absolute;
+  top: -1.5px;
+  left: 40px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 22px 8px;
+  border: 1.5px solid #000;
+  border-bottom: none;
+  background: #fff;
+}
+
+.tab-brand {
+  font-weight: 700;
+  font-size: 16px;
+  text-transform: lowercase;
+}
+
+.tab-title {
+  font-style: italic;
+  font-size: 16px;
+}
+
+.overlay-divider {
+  position: absolute;
+  left: 48px;
+  right: 48px;
+  top: 214px;
+  border-top: 1.5px solid #000;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 170px;
+}
+
+.overlay-divider .divider-marker {
+  position: relative;
+  top: -1px;
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 10px solid #000;
+}
