@@ -1,17 +1,21 @@
-import React, { useCallback, useMemo, useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ReactFlowProvider,
   addEdge,
   useEdgesState,
   useNodesState,
+  type Connection,
+  type Edge,
+  type Node,
 } from "reactflow";
-import type { Edge, Node } from "reactflow";
 import Editor from "@monaco-editor/react";
+
 import { DarTwinFrame } from "./components/DarTwinFrame";
-import { FlowCanvas } from "./components/FlowCanvas";
-import { parseDarTwin } from "./parser";
-import { layoutDarTwin } from "./layout";
+import { DiagramCanvas } from "./components/DiagramCanvas";
+import { parseDarTwin } from "./parser/parseDarTwin";
+import { computeLayout } from "./layout/computeLayout";
 import { formatLabel } from "./utils/format";
+
 import "./App.css";
 import "reactflow/dist/style.css";
 
@@ -44,14 +48,26 @@ const sample = `#dartwin StrawberryCultivationTrans {
   allocate apply_decreased_water to Strawberry.StrawberryDT;
 }`;
 
-function useLayout(nodes: Node[], edges: Edge[]) {
-  const [stateNodes, setNodes, onNodesChange] = useNodesState(nodes);
-  const [stateEdges, setEdges, onEdgesChange] = useEdgesState(edges);
+function useLayout(initialNodes: Node[], initialEdges: Edge[]) {
+  const [stateNodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [stateEdges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  const layoutSignature = useMemo(
+    () => initialNodes.map((node) => node.id).join("|"),
+    [initialNodes]
+  );
 
   useEffect(() => {
-    setNodes(nodes);
-    setEdges(edges);
-  }, [nodes, edges, setNodes, setEdges]);
+    setNodes([]);
+  }, [layoutSignature, setNodes]);
+
+  useEffect(() => {
+    setNodes((prev) => (prev.length === 0 ? initialNodes : prev));
+  }, [initialNodes, setNodes]);
+
+  useEffect(() => {
+    setEdges(initialEdges);
+  }, [initialEdges, setEdges]);
 
   return { nodes: stateNodes, edges: stateEdges, setEdges, onNodesChange, onEdgesChange };
 }
@@ -60,15 +76,18 @@ function InnerApp() {
   const [text, setText] = useState(sample);
   const parsed = useMemo(() => parseDarTwin(text), [text]);
   const dartwinTitle = useMemo(() => {
-    const dartwinNode = parsed.nodes.find((n) => n.type === "dartwin");
+    const dartwinNode = parsed.nodes.find((node) => node.type === "dartwin");
     return formatLabel(dartwinNode?.label ?? "");
   }, [parsed.nodes]);
 
-  const layout = useMemo(() => layoutDarTwin(parsed.nodes, parsed.edges), [parsed.nodes, parsed.edges]);
-  const { nodes, edges, setEdges, onNodesChange, onEdgesChange } = useLayout(layout.nodes, layout.edges);
+  const layout = useMemo(() => computeLayout(parsed), [parsed]);
+  const { nodes, edges, setEdges, onNodesChange, onEdgesChange } = useLayout(
+    layout.nodes,
+    layout.edges
+  );
 
   const onConnect = useCallback(
-    (params: any) => setEdges((eds) => addEdge(params, eds)),
+    (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
     [setEdges]
   );
 
@@ -81,13 +100,14 @@ function InnerApp() {
           defaultLanguage="plaintext"
           value={text}
           onChange={(value) => setText(value || "")}
+          options={{ minimap: { enabled: false } }}
         />
       </div>
 
       <div className="panel">
         <h2>Diagram</h2>
         <DarTwinFrame title={dartwinTitle}>
-          <FlowCanvas
+          <DiagramCanvas
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}

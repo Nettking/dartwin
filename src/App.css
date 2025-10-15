@@ -4,6 +4,7 @@
   padding: 16px;
   height: 100vh;
   box-sizing: border-box;
+  background: #f4f4f4;
 }
 
 .panel {
@@ -15,5 +16,7 @@
 
 .panel h2 {
   margin: 0 0 8px;
-  font: 600 16px/1.2 system-ui, sans-serif;
+  font-family: "Times New Roman", serif;
+  font-size: 18px;
+  font-weight: 700;
 }
