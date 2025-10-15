@@ -2,15 +2,10 @@ import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
   ReactFlowProvider,
   ReactFlow,
-  Background,
-  MiniMap,
-  Controls,
   addEdge,
   useEdgesState,
   useNodesState,
   useReactFlow,
-  Handle,
-  Position,
 } from "reactflow";
 
 import type { Node, Edge } from "reactflow";
@@ -26,6 +21,7 @@ type DTNode = {
   type: "dartwin" | "twinsystem" | "dt" | "port" | "goal";
   label: string;
   parentId?: string;
+  doc?: string;
 };
 
 type DTEdge = {
@@ -160,15 +156,29 @@ function parseDarTwin(text: string): { nodes: DTNode[]; edges: DTEdge[] } {
     twinHeader.lastIndex = m.index + (end - open) + 1;
   }
 
-  const goalHeader = /#goal\s+(\w+)/g;
+  const goalHeader = /#goal\s+(\w+)\s*(\{)?/g;
   let g: RegExpExecArray | null;
   while ((g = goalHeader.exec(dwBody))) {
     const goalName = g[1];
+    let doc: string | undefined;
+    if (g[2] === "{") {
+      const open = dwBody.indexOf("{", g.index);
+      if (open !== -1) {
+        const { body: goalBody, end } = extractBlock(dwBody, open);
+        const docMatch = /doc\s*\/\*([\s\S]*?)\*\//.exec(goalBody);
+        if (docMatch) {
+          doc = docMatch[1].replace(/\s+/g, " ").trim();
+        }
+        goalHeader.lastIndex = end + 1;
+      }
+    }
+
     nodes.push({
       id: `${dwId}_goal_${goalName}`,
       type: "goal",
       label: goalName,
       parentId: dwId,
+      doc,
     });
   }
 
@@ -193,7 +203,12 @@ function PortNode({ data }: any) {
   return <div className="node port" title={data.label}></div>;
 }
 function GoalNode({ data }: any) {
-  return <div className="node goal">{data.label}</div>;
+  return (
+    <div className="node goal">
+      <div className="goal-title">{data.label}</div>
+      {data.doc ? <div className="goal-doc">{data.doc}</div> : null}
+    </div>
+  );
 }
 function BoxNode({ data }: any) {
   return <div className={`node ${data.color || ""}`}>{data.label}</div>;
@@ -206,39 +221,133 @@ function toRF(nodes: DTNode[], edges: DTEdge[]) {
   const rfNodes: Node[] = [];
   const rfEdges: Edge[] = [];
 
-  const yStart = 100;
-  let yOffset = yStart;
+  const formatLabel = (label: string) =>
+    label
+      .split(/_|(?=[A-Z])/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
 
-  for (const n of nodes) {
-    let pos = { x: 0, y: 0 };
+  const canvasWidth = 640;
+  const centerX = canvasWidth / 2;
 
-    switch (n.type) {
-      case "goal":
-        pos = { x: 300 + Math.random() * 200, y: yStart };
-        break;
-      case "twinsystem":
-        pos = { x: 250, y: yStart + 150 };
-        break;
-      case "dt":
-        pos = { x: 350, y: yStart + 250 };
-        break;
-      case "port":
-        pos = { x: 200 + Math.random() * 300, y: yStart + 350 + Math.random() * 50 };
-        break;
-      case "dartwin":
-        pos = { x: 250, y: yStart - 50 };
-        break;
-      default:
-        pos = { x: 200 + Math.random() * 200, y: yStart + 200 };
-    }
+  const dartwin = nodes.find((n) => n.type === "dartwin");
+  const twinsystems = nodes.filter((n) => n.type === "twinsystem");
+  const digitalTwins = nodes.filter((n) => n.type === "dt");
+  const goalNodes = nodes.filter((n) => n.type === "goal");
+  const portNodes = nodes.filter((n) => n.type === "port");
 
+  goalNodes.forEach((goal, idx) => {
     rfNodes.push({
-      id: n.id,
-      type: n.type,
-      data: { label: n.label },
-      position: pos,
+      id: goal.id,
+      type: goal.type,
+      data: {
+        label: formatLabel(goal.label),
+        doc: goal.doc,
+      },
+      position: {
+        x: 80 + idx * 240,
+        y: 10,
+      },
+      style: {
+        width: 180,
+        height: 68,
+      },
+      draggable: false,
+      selectable: false,
+    });
+  });
+
+  if (dartwin) {
+    rfNodes.push({
+      id: dartwin.id,
+      type: dartwin.type,
+      data: { label: `dartwin ${formatLabel(dartwin.label)}` },
+      position: { x: 60, y: 120 },
+      style: { width: 360, height: 52, alignItems: "center", justifyContent: "flex-start", padding: "0 16px" },
+      draggable: false,
+      selectable: false,
     });
   }
+
+  twinsystems.forEach((tw, idx) => {
+    rfNodes.push({
+      id: tw.id,
+      type: tw.type,
+      data: { label: `twin.system ${formatLabel(tw.label)}` },
+      position: { x: 100 + idx * 240, y: 190 },
+      style: { width: 320, height: 48, alignItems: "center", justifyContent: "flex-start", padding: "0 16px" },
+      draggable: false,
+      selectable: false,
+    });
+  });
+
+  digitalTwins.forEach((dt, index) => {
+    const width = 260;
+    const height = 140;
+    const x = centerX - width / 2 + index * 280;
+    const y = 270;
+
+    rfNodes.push({
+      id: dt.id,
+      type: dt.type,
+      data: { label: formatLabel(dt.label) },
+      position: { x, y },
+      style: { width, height, padding: "12px 16px", alignItems: "flex-start" },
+      draggable: false,
+      selectable: false,
+    });
+
+    const dtPorts = portNodes.filter((p) => p.parentId === dt.id);
+    const inputs = dtPorts.filter((p) => /input/i.test(p.label));
+    const outputs = dtPorts.filter((p) => /output/i.test(p.label));
+
+    const placePorts = (collection: DTNode[], yOffset: number) => {
+      const step = collection.length > 1 ? width / (collection.length + 1) : width / 2;
+      collection.forEach((port, idx) => {
+        rfNodes.push({
+          id: port.id,
+          type: port.type,
+          data: { label: port.label },
+          position: { x: step * (idx + 1) - 9, y: yOffset },
+          parentNode: dt.id,
+          extent: "parent",
+          draggable: false,
+          selectable: false,
+        });
+      });
+    };
+
+    placePorts(inputs, 16);
+    placePorts(outputs, height - 34);
+  });
+
+  const twinPorts = portNodes.filter((p) => twinsystems.some((tw) => tw.id === p.parentId));
+  const portStartX = centerX - (twinPorts.length * 60) / 2;
+  twinPorts.forEach((port, idx) => {
+    rfNodes.push({
+      id: port.id,
+      type: port.type,
+      data: { label: port.label },
+      position: { x: portStartX + idx * 60, y: 460 },
+      draggable: false,
+      selectable: false,
+    });
+  });
+
+  const orphanPorts = portNodes.filter(
+    (p) => !digitalTwins.some((dt) => dt.id === p.parentId) && !twinsystems.some((tw) => tw.id === p.parentId)
+  );
+  orphanPorts.forEach((port, idx) => {
+    rfNodes.push({
+      id: port.id,
+      type: port.type,
+      data: { label: port.label },
+      position: { x: 80 + idx * 60, y: 520 },
+      draggable: false,
+      selectable: false,
+    });
+  });
 
   for (const e of edges) {
     rfEdges.push({
@@ -248,7 +357,14 @@ function toRF(nodes: DTNode[], edges: DTEdge[]) {
       label: e.label,
       style: {
         stroke: "#000",
-        strokeDasharray: e.label === "allocate" ? "6 3" : undefined,
+        strokeWidth: 1.2,
+        strokeDasharray: e.label === "allocate" ? "6 4" : undefined,
+      },
+      labelStyle: {
+        fill: "#000",
+        fontFamily: '"Times New Roman", serif',
+        fontSize: 11,
+        textTransform: "lowercase",
       },
       markerEnd: { type: "arrowclosed", color: "#000" },
     });
@@ -288,11 +404,16 @@ function FlowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onConnect }: a
       onConnect={onConnect}
       nodeTypes={nodeTypes}
       proOptions={{ hideAttribution: true }}
+      defaultEdgeOptions={{ type: "straight" }}
+      nodesDraggable={false}
+      nodesConnectable={false}
+      elementsSelectable={false}
+      zoomOnScroll={false}
+      panOnScroll
+      style={{ background: "#fff" }}
       fitView
+      fitViewOptions={{ padding: 0.15 }}
     >
-      <Background />
-      <MiniMap />
-      <Controls />
     </ReactFlow>
   );
 }

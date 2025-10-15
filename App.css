@@ -20,11 +20,34 @@
 
 .diagram-container {
   flex: 1;
-  border: 1px solid #ccc;
-  border-radius: 8px;
+  border: 1.5px solid #000;
+  border-radius: 0;
   overflow: hidden;
   position: relative;
   min-height: 600px; /* ✅ required by React Flow */
+  background: #fff;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+}
+
+.diagram-container::before {
+  content: "";
+  position: absolute;
+  left: 48px;
+  right: 48px;
+  top: 200px;
+  border-top: 1.5px solid #000;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.diagram-container .react-flow {
+  font-family: "Times New Roman", serif;
+  position: relative;
+  z-index: 2;
+}
+
+.diagram-container .react-flow__attribution {
+  display: none;
 }
 
 .node {
@@ -32,27 +55,41 @@
   align-items: center;
   justify-content: center;
   font-family: "Times New Roman", serif;
-  font-size: 12px;
+  font-size: 13px;
   color: #000;
   background: #fff;
   text-align: center;
+  border-radius: 0;
+  box-shadow: none;
+  text-transform: none;
 }
 
 .node.dartwin {
   border: 1.5px solid #000;
   background: #fff;
-  font-weight: bold;
+  font-style: italic;
+  font-weight: 600;
+  justify-content: flex-start;
+  padding: 8px 16px;
 }
 
 .node.twinsystem {
   border: 1.5px solid #000;
   background: #f7f7f7;
   font-style: italic;
+  font-weight: 600;
+  justify-content: flex-start;
+  padding: 8px 16px;
 }
 
 .node.dt {
-  border: 1px solid #000;
+  border: 1.5px solid #000;
   background: #fff;
+  font-weight: 600;
+  justify-content: flex-start;
+  align-items: flex-start;
+  padding: 12px 16px;
+  position: relative;
 }
 
 .node.port {
@@ -60,11 +97,12 @@
   height: 18px;
   border: 1px solid #000;
   background: #fff;
+  border-radius: 3px;
 }
 
 .node.goal {
-  width: 130px;
-  height: 45px;
+  width: 180px;
+  height: 68px;
   background: #fff;
   border: 1.5px solid #000;
   clip-path: polygon(10% 0%, 90% 0%, 100% 85%, 0% 85%);
@@ -72,4 +110,17 @@
   align-items: center;
   justify-content: center;
   font-weight: bold;
+  padding: 10px 16px 14px;
+}
+
+.goal-title {
+  font-size: 16px;
+  text-transform: capitalize;
+}
+
+.goal-doc {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.2;
+  font-style: italic;
 }
