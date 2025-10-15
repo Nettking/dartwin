@@ -1,0 +1,132 @@
+.diagram-container {
+  position: relative;
+  flex: 1;
+  min-height: 640px;
+  border: 1.5px solid #000;
+  background: #fff;
+  display: flex;
+}
+
+.diagram-container .react-flow {
+  flex: 1;
+  font-family: "Times New Roman", serif;
+}
+
+.diagram-container .react-flow__attribution {
+  display: none;
+}
+
+.dartwin-header {
+  font-weight: 700;
+  text-transform: lowercase;
+  margin-right: 8px;
+}
+
+.twin-label {
+  font-weight: 700;
+  font-style: italic;
+}
+
+.twin-box {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  border: 1.5px solid #000;
+  padding: 16px 22px;
+  background: #fff;
+}
+
+.goal-box {
+  border: 1.5px solid #000;
+  clip-path: polygon(12% 0, 88% 0, 100% 86%, 0 86%);
+  padding: 14px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  text-align: center;
+  min-width: 210px;
+}
+
+.goal-title {
+  font-size: 18px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.goal-doc {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.25;
+  font-style: italic;
+}
+
+.port-node {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: "Times New Roman", serif;
+}
+
+.port-square {
+  width: 20px;
+  height: 20px;
+  border: 1.2px solid #000;
+  background: #fff;
+}
+
+.port-caption {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.diagram-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: "Times New Roman", serif;
+}
+
+.overlay-tab {
+  position: absolute;
+  top: -1.5px;
+  left: 48px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 6px 24px 8px;
+  border: 1.5px solid #000;
+  border-bottom: none;
+  background: #fff;
+}
+
+.tab-brand {
+  font-weight: 700;
+  text-transform: lowercase;
+}
+
+.tab-title {
+  font-style: italic;
+}
+
+.overlay-divider {
+  position: absolute;
+  left: 60px;
+  right: 60px;
+  top: 210px;
+  border-top: 1.5px solid #000;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 140px;
+}
+
+.overlay-divider .divider-marker {
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 10px solid #000;
+}

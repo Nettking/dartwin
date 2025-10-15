@@ -1,4 +1,4 @@
-import type { DarTwinEdge, DarTwinNode } from "./types";
+import type { DarTwinEdge, DarTwinNode } from "../types";
 
 const extractBlock = (src: string, openIdx: number) => {
   let depth = 0;
@@ -13,7 +13,12 @@ const extractBlock = (src: string, openIdx: number) => {
   return { body: src.slice(openIdx + 1, i), end: i };
 };
 
-export function parseDarTwin(text: string): { nodes: DarTwinNode[]; edges: DarTwinEdge[] } {
+export interface ParsedDarTwin {
+  nodes: DarTwinNode[];
+  edges: DarTwinEdge[];
+}
+
+export function parseDarTwin(text: string): ParsedDarTwin {
   const nodes: DarTwinNode[] = [];
   const edges: DarTwinEdge[] = [];
 
