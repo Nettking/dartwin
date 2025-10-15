@@ -38,8 +38,6 @@ function createGoalNodes(goalNodes: DarTwinNode[]): Node[] {
       width: 210,
       height: 88,
     },
-    draggable: false,
-    selectable: false,
   }));
 }
 
@@ -65,8 +63,6 @@ function createTwinSystemNodes(
         width: TWIN_WIDTH,
         height: TWIN_HEIGHT,
       },
-      draggable: false,
-      selectable: false,
     });
 
     const containedDigitalTwins = digitalTwins.filter((dt) => dt.parentId === tw.id);
@@ -95,8 +91,6 @@ function createTwinSystemNodes(
           captionSide: options.captionSide,
         },
         position: { x, y },
-        draggable: false,
-        selectable: false,
       };
 
       if (options.parent) {
@@ -144,8 +138,6 @@ function createTwinSystemNodes(
         },
         parentNode: tw.id,
         extent: "parent",
-        draggable: false,
-        selectable: false,
       });
 
       const dtPorts = portNodes.filter((p) => p.parentId === dt.id);

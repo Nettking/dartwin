@@ -39,9 +39,7 @@ export function FlowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onConne
       nodeTypes={nodeTypes}
       proOptions={{ hideAttribution: true }}
       defaultEdgeOptions={{ type: "straight" }}
-      nodesDraggable={false}
       nodesConnectable={false}
-      elementsSelectable={false}
       zoomOnScroll={false}
       panOnScroll
       style={{ background: "#fff" }}
