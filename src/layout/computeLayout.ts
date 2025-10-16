@@ -244,74 +244,79 @@ const buildNode = (
   index: number,
   positions: PositionMap
 ): Node => {
-  const position = positions[node.id] ?? fallbackPosition(index);
-  const dimensions = NODE_DIMENSIONS[node.type];
-  const style = dimensions
-    ? {
-        width: dimensions.width,
-        height: dimensions.height,
-      }
-    : undefined;
-  const common = {
+  const abs = positions[node.id] ?? fallbackPosition(index);
+  const dims = NODE_DIMENSIONS[node.type];
+  const style = dims ? { width: dims.width, height: dims.height } : undefined;
+
+  // Default to absolute position
+  let position = { ...abs };
+
+  // Convert to relative coordinates if node has a parent
+  if (node.parentId && positions[node.parentId]) {
+    const parentPos = positions[node.parentId];
+    position = {
+      x: abs.x - parentPos.x,
+      y: abs.y - parentPos.y,
+    };
+  }
+
+  const base: Partial<Node> = {
     id: node.id,
     position,
     style,
     data: {
-      parent: node.parentId,
       kind: node.type,
+      parent: node.parentId,
     },
-  } as const;
+    parentNode: node.parentId,
+  };
 
   switch (node.type) {
     case "goal":
       return {
-        ...common,
+        ...base,
         type: "goal",
-        data: {
-          ...common.data,
-          label: formatLabel(node.label),
-          doc: node.doc,
-        },
-      };
+        data: { ...base.data, label: formatLabel(node.label), doc: node.doc },
+      } as Node;
+
     case "twinsystem":
       return {
-        ...common,
+        ...base,
         type: "twinsystem",
-        data: {
-          ...common.data,
-          label: formatLabel(node.label),
-        },
-      };
+        extent: "parent", // key: this allows nesting
+        data: { ...base.data, label: formatLabel(node.label) },
+      } as Node;
+
     case "dt":
       return {
-        ...common,
+        ...base,
         type: "dt",
         data: {
-          ...common.data,
+          ...base.data,
           label: formatLabel(node.label).replace(/Dt\b/i, "DT"),
         },
-      };
+      } as Node;
+
     case "port":
       return {
-        ...common,
+        ...base,
         type: "port",
         data: {
-          ...common.data,
+          ...base.data,
           label: node.label,
           caption: formatPortLabel(node.label),
         },
-      };
+      } as Node;
+
     default:
       return {
-        ...common,
+        ...base,
         type: "dartwin",
-        data: {
-          ...common.data,
-          label: formatLabel(node.label),
-        },
-      };
+        data: { ...base.data, label: formatLabel(node.label) },
+      } as Node;
   }
 };
+
 
 const buildEdge = (edge: ParsedDarTwin["edges"][number]): Edge => ({
   id: edge.id,
@@ -339,16 +344,15 @@ export interface LayoutResult {
 
 export function computeLayout(parsed: ParsedDarTwin): LayoutResult {
   const positions: PositionMap = {};
-  const goals = parsed.nodes.filter((node) => node.type === "goal");
-  const twins = parsed.nodes.filter((node) => node.type === "twinsystem");
+  const goals = parsed.nodes.filter((n) => n.type === "goal");
+  const twins = parsed.nodes.filter((n) => n.type === "twinsystem");
 
   setGoalPositions(goals, positions);
   setTwinHierarchyPositions(twins, parsed.nodes, positions);
 
-  const nodes = parsed.nodes
-    .filter((node) => node.type !== "dartwin")
-    .map((node, index) => buildNode(node, index, positions));
+  const nodes = parsed.nodes.map((node, index) => buildNode(node, index, positions)); 
   const edges = parsed.edges.map(buildEdge);
 
   return { nodes, edges };
 }
+
