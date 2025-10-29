@@ -13,6 +13,7 @@ import Editor from "@monaco-editor/react";
 import { DarTwinFrame } from "./components/DarTwinFrame";
 import { DiagramCanvas } from "./components/DiagramCanvas";
 import { parseDarTwin } from "./parser/parseDarTwin";
+import { darTwinToReactFlow } from "./adapters/darTwinToReactFlow";
 import { computeLayout } from "./layout/computeLayout";
 import { formatLabel } from "./utils/format";
 
@@ -74,13 +75,10 @@ function useLayout(initialNodes: Node[], initialEdges: Edge[]) {
 
 function InnerApp() {
   const [text, setText] = useState(sample);
-  const parsed = useMemo(() => parseDarTwin(text), [text]);
-  const dartwinTitle = useMemo(() => {
-    const dartwinNode = parsed.nodes.find((node) => node.type === "dartwin");
-    return formatLabel(dartwinNode?.label ?? "");
-  }, [parsed.nodes]);
-
-  const layout = useMemo(() => computeLayout(parsed), [parsed]);
+  const model = useMemo(() => parseDarTwin(text), [text]);
+  const dartwinTitle = useMemo(() => formatLabel(model.name ?? ""), [model.name]);
+  const graph = useMemo(() => darTwinToReactFlow(model), [model]);
+  const layout = useMemo(() => computeLayout(graph), [graph]);
   const { nodes, edges, setEdges, onNodesChange, onEdgesChange } = useLayout(
     layout.nodes,
     layout.edges

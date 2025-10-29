@@ -31,6 +31,8 @@ const DigitalTwinNode = ({ data }: NodeProps<DigitalTwinNodeData>) => (
   <TwinSystemBox prefix="digital twin" label={data.label} />
 );
 
+const HiddenNode = () => null;
+
 const PortNode = ({ data }: NodeProps<PortNodeData>) => (
   <div className="port-node" title={data.label}>
     <div className="port-square" aria-hidden="true" />
@@ -42,5 +44,6 @@ export const nodeTypes: NodeTypes = {
   goal: GoalNode,
   twinsystem: TwinSystemNode,
   dt: DigitalTwinNode,
+  at: HiddenNode,
   port: PortNode,
 };

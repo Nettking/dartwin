@@ -1,4 +1,4 @@
-export type DarTwinNodeType = "dartwin" | "twinsystem" | "dt" | "port" | "goal";
+export type DarTwinNodeType = "dartwin" | "twinsystem" | "dt" | "at" | "port" | "goal";
 
 export interface DarTwinNode {
   id: string;
@@ -13,4 +13,9 @@ export interface DarTwinEdge {
   source: string;
   target: string;
   label?: string;
+}
+
+export interface DarTwinGraph {
+  nodes: DarTwinNode[];
+  edges: DarTwinEdge[];
 }
