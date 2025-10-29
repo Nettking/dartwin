@@ -1,6 +1,5 @@
 import { MarkerType, type Edge, type Node } from "reactflow";
-import type { ParsedDarTwin } from "../parser/parseDarTwin";
-import type { DarTwinNode } from "../types";
+import type { DarTwinGraph, DarTwinNode, DarTwinEdge } from "../types/reactflow";
 import { formatLabel, formatPortLabel } from "../utils/format";
 
 const CANVAS_MARGIN_X = 120;
@@ -52,6 +51,7 @@ const NODE_DIMENSIONS: Partial<Record<DarTwinNode["type"], { width: number; heig
   goal: { width: GOAL_WIDTH, height: GOAL_HEIGHT },
   twinsystem: { width: TWIN_WIDTH, height: TWIN_HEIGHT },
   dt: { width: DT_WIDTH, height: DT_HEIGHT },
+  at: { width: 0, height: 0 },
   port: { width: PORT_WIDTH, height: PORT_HEIGHT },
 };
 
@@ -148,9 +148,12 @@ const layoutTwinPorts = (
   twin: DarTwinNode,
   allPorts: DarTwinNode[],
   anchors: DigitalTwinAnchors | undefined,
-  positions: PositionMap
+  positions: PositionMap,
+  portParentIds: string[]
 ) => {
-  const twinPorts = groupByParent(allPorts, twin.id).sort(byLabel);
+  const twinPorts = portParentIds
+    .flatMap((parentId) => groupByParent(allPorts, parentId))
+    .sort(byLabel);
   const sensorPorts = twinPorts.filter(isSensorPort);
   const actuatorPorts = twinPorts.filter(isActuatorPort);
   const remainingPorts = twinPorts.filter(
@@ -215,6 +218,7 @@ const setTwinHierarchyPositions = (
 ) => {
   const dts = allNodes.filter((node) => node.type === "dt");
   const ports = allNodes.filter((node) => node.type === "port");
+  const ats = allNodes.filter((node) => node.type === "at");
 
   twins
     .slice()
@@ -229,8 +233,21 @@ const setTwinHierarchyPositions = (
         layoutDigitalTwin({ x: twinX, y: twinY }, dt, index, twinDigitalTwins.length, ports, positions)
       );
 
+      const twinOriginalTwins = groupByParent(ats, twin.id).sort(byLabel);
+      twinOriginalTwins.forEach((originalTwin) => {
+        positions[originalTwin.id] = { x: twinX, y: twinY };
+      });
+
+      const directTwinPorts = groupByParent(ports, twin.id);
+      const portParentIds = [
+        ...(directTwinPorts.length > 0 ? [twin.id] : []),
+        ...twinOriginalTwins.map((originalTwin) => originalTwin.id),
+      ];
+
+      const targetPortParents = portParentIds.length > 0 ? portParentIds : [twin.id];
+
       const primaryAnchor = anchors[0];
-      layoutTwinPorts(twin, ports, primaryAnchor, positions);
+      layoutTwinPorts(twin, ports, primaryAnchor, positions, targetPortParents);
     });
 };
 
@@ -297,6 +314,13 @@ const buildNode = (
         },
       } as Node;
 
+    case "at":
+      return {
+        ...base,
+        type: "at",
+        data: { ...base.data, label: formatLabel(node.label) },
+      } as Node;
+
     case "port":
       return {
         ...base,
@@ -318,7 +342,7 @@ const buildNode = (
 };
 
 
-const buildEdge = (edge: ParsedDarTwin["edges"][number]): Edge => ({
+const buildEdge = (edge: DarTwinEdge): Edge => ({
   id: edge.id,
   source: edge.source,
   target: edge.target,
@@ -342,7 +366,7 @@ export interface LayoutResult {
   edges: Edge[];
 }
 
-export function computeLayout(parsed: ParsedDarTwin): LayoutResult {
+export function computeLayout(parsed: DarTwinGraph): LayoutResult {
   const positions: PositionMap = {};
   const goals = parsed.nodes.filter((n) => n.type === "goal");
   const twins = parsed.nodes.filter((n) => n.type === "twinsystem");

@@ -1,154 +1,244 @@
-import type { DarTwinEdge, DarTwinNode } from "../types";
+import type {
+  Allocation,
+  Connection,
+  DarTrans,
+  DarTwinModel,
+  Goal,
+  PartialDarTwinSlice,
+  TwinSystem,
+} from "../types/dartwin";
 
-export interface ParsedDarTwin {
-  nodes: DarTwinNode[];
-  edges: DarTwinEdge[];
+const WHITESPACE_ONLY_LINE = /^\s*$/;
+
+const sanitizeName = (value: string) => value.trim();
+
+const normalizeWhitespace = (value: string) =>
+  value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => !WHITESPACE_ONLY_LINE.test(line))
+    .join(" ")
+    .trim();
+
+interface ExtractedBlock {
+  body: string;
+  end: number;
 }
 
-/**
- * Safely extracts a {...} block relative to a given string.
- */
-const extractBlock = (src: string, openIdx: number) => {
+const extractBlock = (src: string, openIdx: number): ExtractedBlock => {
   let depth = 0;
   for (let i = openIdx; i < src.length; i++) {
-    if (src[i] === "{") depth++;
-    else if (src[i] === "}") {
+    const char = src[i];
+    if (char === "{") {
+      depth++;
+    } else if (char === "}") {
       depth--;
       if (depth === 0) {
         return { body: src.slice(openIdx + 1, i), end: i };
       }
     }
   }
+
   return { body: "", end: src.length };
 };
 
-/**
- * Main parser for the DarTwin DSL.
- */
-export function parseDarTwin(text: string): ParsedDarTwin {
-  const nodes: DarTwinNode[] = [];
-  const edges: DarTwinEdge[] = [];
-
-  const dwHeader = /#dartwin\s+(\w+)\s*\{/;
-  const dwMatch = dwHeader.exec(text);
-  if (!dwMatch) return { nodes, edges };
-
-  const dartwinLabel = dwMatch[1];
-  const dwOpen = text.indexOf("{", dwMatch.index!);
-  const { body: dwBody } = extractBlock(text, dwOpen);
-  const dwId = `dartwin_${dartwinLabel}`;
-  nodes.push({ id: dwId, type: "dartwin", label: dartwinLabel });
-
-  // === Parse twin systems ===
-  const twinHeader = /#twinsystem\s+(\w+)\s*\{/g;
-  let twinMatch: RegExpExecArray | null;
-
-  const pendingEdges: DarTwinEdge[] = []; // buffer until all nodes parsed
-
-  while ((twinMatch = twinHeader.exec(dwBody))) {
-    const twinName = twinMatch[1];
-    const open = twinMatch.index + twinMatch[0].length - 1;
-    const { body: twinBody } = extractBlock(dwBody, open);
-    const twinId = `${dwId}_twinsystem_${twinName}`;
-    nodes.push({ id: twinId, type: "twinsystem", label: twinName, parentId: dwId });
-
-    // === digital twins inside twinsystem ===
-    const dtHeader = /#digitaltwin\s+(\w+)\s*\{/g;
-    let dtMatch: RegExpExecArray | null;
-    while ((dtMatch = dtHeader.exec(twinBody))) {
-      const dtName = dtMatch[1];
-      const dtOpen = dtMatch.index + dtMatch[0].length - 1;
-      const { body: dtBody } = extractBlock(twinBody, dtOpen);
-      const dtId = `${twinId}_dt_${dtName}`;
-      nodes.push({ id: dtId, type: "dt", label: dtName, parentId: twinId });
-
-      const dtPorts = /port\s+(\w+)\s*;/g;
-      let portMatch: RegExpExecArray | null;
-      while ((portMatch = dtPorts.exec(dtBody))) {
-        const portName = portMatch[1];
-        nodes.push({
-          id: `${dtId}_port_${portName}`,
-          type: "port",
-          label: portName,
-          parentId: dtId,
-        });
-      }
-    }
-
-    // === parts inside twinsystem ===
-    const partHeader = /part\s+(\w+)\s*\{/g;
-    let partMatch: RegExpExecArray | null;
-    while ((partMatch = partHeader.exec(twinBody))) {
-      const partName = partMatch[1];
-      const partOpen = partMatch.index + partMatch[0].length - 1;
-      const { body: partBody } = extractBlock(twinBody, partOpen);
-      const portRegex = /port\s+(\w+)\s*;/g;
-      let twinPortMatch: RegExpExecArray | null;
-      while ((twinPortMatch = portRegex.exec(partBody))) {
-        const portName = twinPortMatch[1];
-        nodes.push({
-          id: `${twinId}_part_${partName}_port_${portName}`,
-          type: "port",
-          label: portName,
-          parentId: twinId,
-        });
-      }
-    }
-
-    // === connect statements ===
-    const connectRegex = /connect\s+([\w\.]+)\s+to\s+([\w\.]+)\s*;/g;
-    let connectionMatch: RegExpExecArray | null;
-    while ((connectionMatch = connectRegex.exec(twinBody))) {
-      const src = `${twinId}_${connectionMatch[1].replace(/\./g, "__")}`;
-      const tgt = `${twinId}_${connectionMatch[2].replace(/\./g, "__")}`;
-      pendingEdges.push({ id: `c_${pendingEdges.length}`, source: src, target: tgt });
-    }
+const parsePorts = (body: string): string[] => {
+  const ports: string[] = [];
+  const portRegex = /port\s+([\w-]+)\s*;/gi;
+  let match: RegExpExecArray | null;
+  while ((match = portRegex.exec(body))) {
+    ports.push(sanitizeName(match[1]));
   }
+  return ports;
+};
 
-  // === goals ===
-  const goalHeader = /#goal\s+(\w+)\s*(\{)?/g;
-  let goalMatch: RegExpExecArray | null;
-  while ((goalMatch = goalHeader.exec(dwBody))) {
-    const goalName = goalMatch[1];
+const parseDigitalTwins = (body: string): TwinSystem["digital_twins"] => {
+  const digitalTwins: TwinSystem["digital_twins"] = [];
+  const dtRegex = /#digitaltwin\s+([\w-]+)\s*\{/gi;
+  let match: RegExpExecArray | null;
+  while ((match = dtRegex.exec(body))) {
+    const name = sanitizeName(match[1]);
+    const openIdx = body.indexOf("{", match.index + match[0].length - 1);
+    const { body: dtBody, end } = extractBlock(body, openIdx);
+    digitalTwins.push({ name, ports: parsePorts(dtBody) });
+    dtRegex.lastIndex = end + 1;
+  }
+  return digitalTwins;
+};
+
+const parseOriginalTwins = (body: string): TwinSystem["original_twins"] => {
+  const originalTwins: TwinSystem["original_twins"] = [];
+  const partRegex = /part\s+([\w-]+)\s*\{/gi;
+  let match: RegExpExecArray | null;
+  while ((match = partRegex.exec(body))) {
+    const name = sanitizeName(match[1]);
+    const openIdx = body.indexOf("{", match.index + match[0].length - 1);
+    const { body: partBody, end } = extractBlock(body, openIdx);
+    originalTwins.push({ name, ports: parsePorts(partBody) });
+    partRegex.lastIndex = end + 1;
+  }
+  return originalTwins;
+};
+
+const parseConnectionName = (inline: string | undefined, trailing: string | undefined) => {
+  if (inline) {
+    return sanitizeName(inline);
+  }
+  if (!trailing) {
+    return undefined;
+  }
+  const commentMatch = /\/\/\s*name\s*:\s*([\w-]+)/i.exec(trailing);
+  return commentMatch ? sanitizeName(commentMatch[1]) : undefined;
+};
+
+const parseConnections = (body: string): Connection[] => {
+  const connections: Connection[] = [];
+  const connectRegex =
+    /connect\s+([\w.]+)\s+to\s+([\w.]+)(?:\s+name\s+([\w-]+))?\s*;([^\n]*)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = connectRegex.exec(body))) {
+    const [, from, to, inlineName, trailing] = match;
+    const name = parseConnectionName(inlineName, trailing);
+    connections.push({
+      from: sanitizeName(from),
+      to: sanitizeName(to),
+      ...(name ? { name } : {}),
+    });
+  }
+  return connections;
+};
+
+const parseTwinSystems = (body: string): TwinSystem[] => {
+  const systems: TwinSystem[] = [];
+  const systemRegex = /#twinsystem\s+([\w-]+)\s*\{/gi;
+  let match: RegExpExecArray | null;
+  while ((match = systemRegex.exec(body))) {
+    const name = sanitizeName(match[1]);
+    const openIdx = body.indexOf("{", match.index + match[0].length - 1);
+    const { body: systemBody, end } = extractBlock(body, openIdx);
+    systems.push({
+      name,
+      digital_twins: parseDigitalTwins(systemBody),
+      original_twins: parseOriginalTwins(systemBody),
+      connections: parseConnections(systemBody),
+    });
+    systemRegex.lastIndex = end + 1;
+  }
+  return systems;
+};
+
+const parseGoals = (body: string): Goal[] => {
+  const goals: Goal[] = [];
+  const goalRegex = /#goal\s+([\w-]+)\s*(\{)?/gi;
+  let match: RegExpExecArray | null;
+  while ((match = goalRegex.exec(body))) {
+    const name = sanitizeName(match[1]);
     let doc: string | undefined;
-    const braceOpen = goalMatch.index + goalMatch[0].length - 1;
-    if (dwBody[braceOpen] === "{") {
-      const { body: goalBody, end } = extractBlock(dwBody, braceOpen);
-      const docMatch = /doc\s*\/\*([\s\S]*?)\*\//.exec(goalBody);
+    const hasBlock = match[2] === "{";
+    if (hasBlock) {
+      const openIdx = body.indexOf("{", match.index + match[0].length - 1);
+      const { body: goalBody, end } = extractBlock(body, openIdx);
+      const docMatch = /doc\s*\/\*([\s\S]*?)\*\//i.exec(goalBody);
       if (docMatch) {
-        doc = docMatch[1].replace(/\s+/g, " ").trim();
+        doc = normalizeWhitespace(docMatch[1]);
       }
-      goalHeader.lastIndex = end;
+      goalRegex.lastIndex = end + 1;
     }
+    goals.push({ name, ...(doc ? { doc } : {}) });
+  }
+  return goals;
+};
 
-    nodes.push({
-      id: `${dwId}_goal_${goalName}`,
-      type: "goal",
-      label: goalName,
-      parentId: dwId,
-      doc,
-    });
+const parseAllocations = (body: string): Allocation[] => {
+  const allocations: Allocation[] = [];
+  const allocRegex = /allocate\s+([\w-]+)\s+to\s+([\w.-]+)\s*;/gi;
+  let match: RegExpExecArray | null;
+  while ((match = allocRegex.exec(body))) {
+    allocations.push({ goal: sanitizeName(match[1]), target: sanitizeName(match[2]) });
+  }
+  return allocations;
+};
+
+const buildSlice = (body: string): PartialDarTwinSlice => {
+  const slice: PartialDarTwinSlice = {};
+  const systems = parseTwinSystems(body);
+  const goals = parseGoals(body);
+  const allocations = parseAllocations(body);
+
+  if (systems.length > 0) {
+    slice.systems = systems;
+  }
+  if (goals.length > 0) {
+    slice.goals = goals;
+  }
+  if (allocations.length > 0) {
+    slice.allocations = allocations;
   }
 
-  // === allocations ===
-  const allocRegex = /allocate\s+(\w+)\s+to\s+([\w\.]+)\s*;/g;
-  let allocMatch: RegExpExecArray | null;
-  while ((allocMatch = allocRegex.exec(dwBody))) {
-    pendingEdges.push({
-      id: `alloc_${allocMatch[1]}`,
-      source: `${dwId}_goal_${allocMatch[1]}`,
-      target: `${dwId}_${allocMatch[2].replace(/\./g, "__")}`,
-      label: "allocate",
-    });
+  return slice;
+};
+
+const parseDarTrans = (body: string): DarTrans | undefined => {
+  const transRegex = /#dartrans\s*\{/i;
+  const match = transRegex.exec(body);
+  if (!match) {
+    return undefined;
   }
 
-  // === final edge filtering ===
-  const nodeIds = new Set(nodes.map(n => n.id));
-  for (const e of pendingEdges) {
-    if (nodeIds.has(e.source) && nodeIds.has(e.target)) {
-      edges.push(e);
+  const openIdx = body.indexOf("{", match.index + match[0].length - 1);
+  const { body: darTransBody } = extractBlock(body, openIdx);
+  const dartrans: DarTrans = {};
+
+  ("core before after".split(" ") as Array<keyof DarTrans>).forEach((section) => {
+    const sectionRegex = new RegExp(`#${section}\\s*\\{`, "i");
+    const sectionMatch = sectionRegex.exec(darTransBody);
+    if (!sectionMatch) {
+      return;
     }
+    const sectionOpenIdx = darTransBody.indexOf("{", sectionMatch.index + sectionMatch[0].length - 1);
+    const { body: sectionBody } = extractBlock(darTransBody, sectionOpenIdx);
+    const slice = buildSlice(sectionBody);
+    dartrans[section] = slice;
+  });
+
+  return Object.keys(dartrans).length > 0 ? dartrans : undefined;
+};
+
+const createEmptyModel = (): DarTwinModel => ({
+  type: "DarTwin",
+  name: "",
+  systems: [],
+  goals: [],
+  allocations: [],
+});
+
+export function parseDarTwin(text: string): DarTwinModel {
+  const headerRegex = /#dartwin\s+([\w-]+)\s*\{/i;
+  const match = headerRegex.exec(text);
+  if (!match) {
+    return createEmptyModel();
   }
 
-  return { nodes, edges };
+  const name = sanitizeName(match[1]);
+  const openIdx = text.indexOf("{", match.index + match[0].length - 1);
+  const { body } = extractBlock(text, openIdx);
+
+  const systems = parseTwinSystems(body);
+  const goals = parseGoals(body);
+  const allocations = parseAllocations(body);
+  const dartrans = parseDarTrans(body);
+
+  const model: DarTwinModel = {
+    type: "DarTwin",
+    name,
+    systems,
+    goals,
+    allocations,
+  };
+
+  if (dartrans) {
+    model.dartrans = dartrans;
+  }
+
+  return model;
 }
