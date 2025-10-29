@@ -73,6 +73,8 @@ function useLayout(initialNodes: Node[], initialEdges: Edge[]) {
   return { nodes: stateNodes, edges: stateEdges, setEdges, onNodesChange, onEdgesChange };
 }
 
+type ViewMode = "diagram" | "json";
+
 function InnerApp() {
   const [text, setText] = useState(sample);
   const model = useMemo(() => parseDarTwin(text), [text]);
@@ -83,6 +85,8 @@ function InnerApp() {
     layout.nodes,
     layout.edges
   );
+  const [viewMode, setViewMode] = useState<ViewMode>("diagram");
+  const jsonModel = useMemo(() => JSON.stringify(model, null, 2), [model]);
 
   const onConnect = useCallback(
     (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
@@ -93,26 +97,54 @@ function InnerApp() {
     <div className="app-container">
       <div className="panel">
         <h2>DarTwin Text</h2>
-        <Editor
-          height="75vh"
-          defaultLanguage="plaintext"
-          value={text}
-          onChange={(value) => setText(value || "")}
-          options={{ minimap: { enabled: false } }}
-        />
+        <div className="panel-content">
+          <Editor
+            height="75vh"
+            defaultLanguage="plaintext"
+            value={text}
+            onChange={(value) => setText(value || "")}
+            options={{ minimap: { enabled: false } }}
+          />
+        </div>
       </div>
 
       <div className="panel">
-        <h2>Diagram</h2>
-        <DarTwinFrame title={dartwinTitle}>
-          <DiagramCanvas
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-          />
-        </DarTwinFrame>
+        <div className="panel-header">
+          <h2>Diagram</h2>
+          <div className="view-toggle" role="group" aria-label="Diagram view mode">
+            <button
+              type="button"
+              className={`toggle-button${viewMode === "diagram" ? " active" : ""}`}
+              onClick={() => setViewMode("diagram")}
+              aria-pressed={viewMode === "diagram"}
+            >
+              Diagram
+            </button>
+            <button
+              type="button"
+              className={`toggle-button${viewMode === "json" ? " active" : ""}`}
+              onClick={() => setViewMode("json")}
+              aria-pressed={viewMode === "json"}
+            >
+              JSON
+            </button>
+          </div>
+        </div>
+        <div className="panel-content">
+          {viewMode === "diagram" ? (
+            <DarTwinFrame title={dartwinTitle}>
+              <DiagramCanvas
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+              />
+            </DarTwinFrame>
+          ) : (
+            <pre className="json-view">{jsonModel}</pre>
+          )}
+        </div>
       </div>
     </div>
   );
